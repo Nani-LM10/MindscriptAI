@@ -66,7 +66,7 @@ const ContentGenerator: React.FC<ContentGeneratorProps> = ({
   const totalSections = selectedSections.length;
 
   const sectionsWithContent = outline.sections.filter(
-    (s) => s.content && s.content.length > 0
+    (s) => s.subtopics.some((st) => st.content && st.content.trim().length > 0)
   ).length;
 
   useEffect(() => {
@@ -83,7 +83,7 @@ const ContentGenerator: React.FC<ContentGeneratorProps> = ({
     }
   }, [outline, activeTab, totalSections, sectionsWithContent, onProgressUpdate, selectedSections]);
 
-  // ⚠️ OPTIONAL: regenerate full section (not subtopic anymore)
+  // Regenerate all subtopics for a single section
   const generateSingleSection = async (sectionId: string) => {
     const section = localOutline.sections.find((s) => s.id === sectionId);
     if (!section) return;
@@ -91,17 +91,28 @@ const ContentGenerator: React.FC<ContentGeneratorProps> = ({
     setGeneratingMap((prev) => ({ ...prev, [sectionId]: true }));
 
     try {
-      const content = await generateSectionContent(
+      // Returns Record<subtopicTitle, content>
+      const subtopicMap = await generateSectionContent(
         localOutline.mainTopic,
         section.title,
         section.subtopics.map((st) => st.title),
-        topicInfo.academicLevel || "undergraduate"
+        topicInfo.academicLevel || "undergraduate",
+        topicInfo.documentLength
       );
 
       const updatedOutline = {
         ...localOutline,
         sections: localOutline.sections.map((s) =>
-          s.id === sectionId ? { ...s, content } : s
+          s.id === sectionId
+            ? {
+                ...s,
+                content: undefined as string | undefined, // clear old flat blob
+                subtopics: s.subtopics.map((st) => ({
+                  ...st,
+                  content: subtopicMap[st.title] || subtopicMap[Object.keys(subtopicMap).find(k => k.toLowerCase().includes(st.title.toLowerCase().slice(0, 8))) ?? ""] || st.content,
+                })),
+              }
+            : s
         ),
       };
 
@@ -132,18 +143,39 @@ const ContentGenerator: React.FC<ContentGeneratorProps> = ({
             .map((st) => st.title),
         }));
 
+      // Returns Record<sectionId, Record<subtopicTitle, content>>
       const contentMapping = await generateFullPaperContent(
         localOutline.mainTopic,
         activeSections,
-        topicInfo.academicLevel || "undergraduate"
+        topicInfo.academicLevel || "undergraduate",
+        topicInfo.documentLength
       );
 
       const updatedOutline = {
         ...localOutline,
-        sections: localOutline.sections.map((s) => ({
-          ...s,
-          content: contentMapping[s.id] || s.content,
-        })),
+        sections: localOutline.sections.map((s) => {
+          const sectionMap = contentMapping[s.id] as Record<string, string> | undefined;
+          if (!sectionMap) return s;
+          return {
+            ...s,
+            content: undefined as string | undefined, // clear any old flat blob
+            subtopics: s.subtopics.map((st) => {
+              // Match by exact title first, then fuzzy prefix match
+              const exactKey = Object.keys(sectionMap).find(
+                (k) => k.toLowerCase() === st.title.toLowerCase()
+              );
+              const fuzzyKey = exactKey ??
+                Object.keys(sectionMap).find((k) =>
+                  k.toLowerCase().includes(st.title.toLowerCase().slice(0, 10)) ||
+                  st.title.toLowerCase().includes(k.toLowerCase().slice(0, 10))
+                );
+              return {
+                ...st,
+                content: (fuzzyKey ? sectionMap[fuzzyKey] : undefined) || st.content,
+              };
+            }),
+          };
+        }),
       };
 
       setLocalOutline(updatedOutline);
@@ -231,7 +263,7 @@ const ContentGenerator: React.FC<ContentGeneratorProps> = ({
           <div className="border-b border-white/5 overflow-x-auto no-scrollbar">
             <TabsList className="flex h-auto p-0 bg-transparent w-max min-w-full">
               {selectedSections.map((section, i) => {
-                const hasContent = section.content;
+                const hasContent = section.subtopics.some((st) => st.content && st.content.trim().length > 0);
                 return (
                   <TabsTrigger
                     key={section.id}
@@ -277,22 +309,30 @@ const ContentGenerator: React.FC<ContentGeneratorProps> = ({
                   </Button>
                 </div>
 
-                {/* Section Content */}
-                <div className="text-white/70 leading-relaxed space-y-3">
-                  {(() => {
-                    const text = normalizeContent(section.content);
-                    if (!text) {
-                      return (
-                        <div className="text-white/30 text-sm flex items-center gap-2">
-                          <FileText className="size-4" />
-                          No content yet
-                        </div>
-                      );
-                    }
-                    return text.split("\n\n").map((p, i) => (
-                      <p key={i}>{p}</p>
-                    ));
-                  })()}
+                {/* Section Content — per subtopic */}
+                <div className="space-y-6">
+                  {section.subtopics.map((st, stIdx) => {
+                    const text = normalizeContent(st.content);
+                    return (
+                      <div key={st.id}>
+                        <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-2">
+                          {stIdx + 1}. {st.title}
+                        </h3>
+                        {text ? (
+                          <div className="text-white/70 leading-relaxed space-y-3">
+                            {text.split("\n\n").map((p, i) => (
+                              <p key={i}>{p}</p>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-white/25 text-sm flex items-center gap-2">
+                            <FileText className="size-4" />
+                            No content yet — click Generate
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </TabsContent>

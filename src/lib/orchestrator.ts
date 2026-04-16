@@ -90,15 +90,16 @@ export async function generateAll(
 
   onProgress?.({ completed: 0, total, phase: "content" });
 
-  const contentMap = new Map<string, string>();
+  // Record<sectionId, Record<subtopicTitle, content>>
+  const contentMap = new Map<string, Record<string, string>>();
 
   // 🚀 Generate sections (batched + retry)
   await batchParallel(selectedSections, 2, async (section) => {
-    let content = "";
+    let subtopicMap: Record<string, string> = {};
 
     for (let i = 0; i < 2; i++) {
       try {
-        content = await generateSectionContent(
+        subtopicMap = await generateSectionContent(
           outline.mainTopic,
           section.title,
           section.subtopics.map((st) => st.title),
@@ -108,28 +109,45 @@ export async function generateAll(
       } catch (err) {
         if (i === 1) {
           console.error(`Failed section "${section.title}"`, err);
-          content = `Failed to generate "${section.title}"`;
+          // Provide stub content for each subtopic
+          subtopicMap = Object.fromEntries(
+            section.subtopics.map((st) => [st.title, `Failed to generate "${st.title}"`])
+          );
         }
       }
     }
 
-    contentMap.set(section.id, content);
+    contentMap.set(section.id, subtopicMap);
 
     completed++;
     onProgress?.({ completed, total, phase: "content" });
   });
 
-  // 🧩 Merge content into sections
+  // 🧩 Merge per-subtopic content into sections
   const updatedOutline: DocumentOutline = {
     ...outline,
     sections: outline.sections.map((section) => {
-      const content = contentMap.get(section.id);
-
-      if (!content) return section;
+      const subtopicMap = contentMap.get(section.id);
+      if (!subtopicMap) return section;
 
       return {
         ...section,
-        content: stripImagePlaceholders(content),
+        content: undefined as string | undefined, // clear flat blob
+        subtopics: section.subtopics.map((st) => {
+          const exactKey = Object.keys(subtopicMap).find(
+            (k) => k.toLowerCase() === st.title.toLowerCase()
+          );
+          const fuzzyKey = exactKey ??
+            Object.keys(subtopicMap).find((k) =>
+              k.toLowerCase().includes(st.title.toLowerCase().slice(0, 10)) ||
+              st.title.toLowerCase().includes(k.toLowerCase().slice(0, 10))
+            );
+          const raw = fuzzyKey ? subtopicMap[fuzzyKey] : "";
+          return {
+            ...st,
+            content: raw ? stripImagePlaceholders(raw) : st.content,
+          };
+        }),
       };
     }),
   };

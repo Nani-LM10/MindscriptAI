@@ -154,89 +154,77 @@ export const exportDocument = (
 
       // Content Pages
       selectedSections.forEach((section, sectionIndex) => {
-        // Start each section on a new page
         doc.addPage();
         yPosition = 20;
 
-        // Add page number
-        doc.setFontSize(10);
-        doc.text(
-          `Page ${pageNumber}`,
-          doc.internal.pageSize.width - 30,
-          doc.internal.pageSize.height - 10
-        );
-        pageNumber++;
+        // ── Page footer helper ──
+        const addPageFooter = () => {
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "italic");
+          doc.text(
+            String(pageNumber),
+            doc.internal.pageSize.width / 2,
+            doc.internal.pageSize.height - 10,
+            { align: "center" }
+          );
+          doc.setFont("helvetica", "normal");
+          pageNumber++;
+        };
 
-        // Section title
-        doc.setFontSize(16);
-        doc.setFont("helvetica", "bold");
-        doc.text(`${sectionIndex + 1}. ${section.title}`, 20, yPosition);
-        doc.setFont("helvetica", "normal");
-        yPosition += 15;
-
-        // Content logic: Prefers section.content if available, otherwise subtopics
-        if (section.content) {
-          doc.setFontSize(12);
-          const lines = doc.splitTextToSize(section.content, 170);
-          lines.forEach((line: string) => {
-            if (yPosition > 280) {
+        // ── Overflow-safe text writer ──
+        const writeLines = (text: string, fontSize: number, indent: number, spacing: number) => {
+          doc.setFontSize(fontSize);
+          const maxW = doc.internal.pageSize.width - indent - 20;
+          const wrapped: string[] = doc.splitTextToSize(text, maxW);
+          const lh = fontSize * 0.42; // line height in doc units
+          wrapped.forEach((ln: string) => {
+            if (yPosition > 275) {
+              addPageFooter();
               doc.addPage();
               yPosition = 20;
-              doc.setFontSize(10);
-              doc.text(
-                `Page ${pageNumber}`,
-                doc.internal.pageSize.width - 30,
-                doc.internal.pageSize.height - 10
-              );
-              pageNumber++;
-              doc.setFontSize(12);
+              doc.setFontSize(fontSize);
             }
-            doc.text(line, 20, yPosition);
-            yPosition += 7;
+            doc.text(ln, indent, yPosition);
+            yPosition += lh;
           });
-          yPosition += 10;
-        } else {
-          // Subtopics fallback
-          section.subtopics.forEach((subtopic, subtopicIndex) => {
-            // Subtopic title
-            doc.setFontSize(14);
-            doc.setFont("helvetica", "bold");
-            doc.text(
-              `${sectionIndex + 1}.${subtopicIndex + 1}. ${subtopic.title}`,
-              20,
-              yPosition
-            );
+          yPosition += spacing;
+        };
+
+        addPageFooter();
+
+        // ── Section heading (15pt bold) ──
+        doc.setFont("helvetica", "bold");
+        writeLines(`${sectionIndex + 1}. ${section.title}`, 15, 20, 6);
+        doc.setFont("helvetica", "normal");
+
+        // ── Render each subtopic with its own heading + content ──
+        section.subtopics.forEach((st, stIdx) => {
+          if (yPosition > 265) { addPageFooter(); doc.addPage(); yPosition = 20; }
+
+          doc.setFont("helvetica", "bold");
+          writeLines(`${sectionIndex + 1}.${stIdx + 1}  ${st.title}`, 12, 20, 3);
+          doc.setFont("helvetica", "normal");
+
+          // st.content has the per-subtopic content (new schema)
+          // fall back to a slice of section.content (old schema) or empty notice
+          const rawContent = st.content?.trim()
+            ? st.content
+            : section.content?.trim() ?? "";
+
+          if (rawContent) {
+            rawContent
+              .split(/\n{2,}/)
+              .map((p) => p.trim())
+              .filter((p) => p.length > 0)
+              .forEach((para) => writeLines(para, 11, 22, 5));
+          } else {
+            doc.setFont("helvetica", "italic");
+            writeLines("(No content generated for this subtopic.)", 10, 22, 4);
             doc.setFont("helvetica", "normal");
-            yPosition += 10;
+          }
 
-            // Subtopic content
-            doc.setFontSize(12);
-            const lines = doc.splitTextToSize(subtopic.content, 170);
-            lines.forEach((line: string) => {
-              // Check if we need a new page
-              if (yPosition > 280) {
-                doc.addPage();
-                yPosition = 20;
-
-                // Add page number
-                doc.setFontSize(10);
-                doc.text(
-                  `Page ${pageNumber}`,
-                  doc.internal.pageSize.width - 30,
-                  doc.internal.pageSize.height - 10
-                );
-                pageNumber++;
-
-                doc.setFontSize(12);
-              }
-
-              doc.text(line, 20, yPosition);
-              yPosition += 7;
-            });
-
-            yPosition += 10;
-          });
-        }
+          yPosition += 4;
+        });
       });
 
       // Save PDF
@@ -276,17 +264,17 @@ export const exportDocument = (
               // Academic level if available
               ...(topicInfo?.academicLevel
                 ? [
-                    new Paragraph({
-                      alignment: "center",
-                      spacing: { after: 400 },
-                      children: [
-                        new TextRun({
-                          text: `${topicInfo.academicLevel} Level Research Paper`,
-                          size: 32, // 16pt
-                        }),
-                      ],
-                    }),
-                  ]
+                  new Paragraph({
+                    alignment: "center",
+                    spacing: { after: 400 },
+                    children: [
+                      new TextRun({
+                        text: `${topicInfo.academicLevel} Level Research Paper`,
+                        size: 32, // 16pt
+                      }),
+                    ],
+                  }),
+                ]
                 : []),
 
               // Author information (placeholder)
@@ -385,9 +373,8 @@ export const exportDocument = (
                       ],
                       children: [
                         new TextRun({
-                          text: `${sectionIndex + 1}.${subtopicIndex + 1}. ${
-                            subtopic.title
-                          }`,
+                          text: `${sectionIndex + 1}.${subtopicIndex + 1}. ${subtopic.title
+                            }`,
                           size: 24, // 12pt
                         }),
                         new TextRun({
@@ -409,7 +396,7 @@ export const exportDocument = (
 
               // Document content
               ...selectedSections.flatMap((section, sectionIndex) => {
-                const sectionContent = [
+                const sectionContent: Paragraph[] = [
                   new Paragraph({
                     heading: HeadingLevel.HEADING_1,
                     spacing: { before: 400, after: 200 },
@@ -417,60 +404,44 @@ export const exportDocument = (
                     children: [
                       new TextRun({
                         text: `${sectionIndex + 1}. ${section.title}`,
-                        size: 32, // 16pt
+                        size: 32,
                         bold: true,
                       }),
                     ],
                   }),
                 ];
 
-                if (section.content) {
+                // Always render using per-subtopic content (new schema)
+                section.subtopics.forEach((st, stIdx) => {
+                  const rawContent = st.content?.trim()
+                    ? st.content
+                    : section.content?.trim() ?? "";
+
                   sectionContent.push(
-                    ...section.content.split("\n\n").map(
-                      (paragraph) =>
-                        new Paragraph({
-                          spacing: { after: 120 },
-                          children: [
-                            new TextRun({
-                              text: paragraph,
-                              size: 24, // 12pt
-                            }),
-                          ],
-                        })
-                    )
-                  );
-                } else {
-                  section.subtopics.forEach((subtopic, subtopicIndex) => {
-                    sectionContent.push(
-                      new Paragraph({
-                        heading: HeadingLevel.HEADING_2,
-                        spacing: { before: 300, after: 120 },
-                        children: [
-                          new TextRun({
-                            text: `${sectionIndex + 1}.${subtopicIndex + 1}. ${
-                              subtopic.title
-                            }`,
-                            size: 28, // 14pt
-                            bold: true,
-                          }),
-                        ],
-                      }),
-                      // Split the content into paragraphs for better formatting
-                      ...subtopic.content.split("\n\n").map(
-                        (paragraph) =>
+                    new Paragraph({
+                      heading: HeadingLevel.HEADING_2,
+                      spacing: { before: 280, after: 120 },
+                      children: [
+                        new TextRun({
+                          text: `${sectionIndex + 1}.${stIdx + 1} ${st.title}`,
+                          size: 28,
+                          bold: true,
+                        }),
+                      ],
+                    }),
+                    ...rawContent
+                      .split(/\n{2,}/)
+                      .map((p) => p.trim())
+                      .filter((p) => p.length > 0)
+                      .map(
+                        (para) =>
                           new Paragraph({
-                            spacing: { after: 120 },
-                            children: [
-                              new TextRun({
-                                text: paragraph,
-                                size: 24, // 12pt
-                              }),
-                            ],
+                            spacing: { after: 160 },
+                            children: [new TextRun({ text: para, size: 24 })],
                           })
                       )
-                    );
-                  });
-                }
+                  );
+                });
 
                 return sectionContent;
               }),

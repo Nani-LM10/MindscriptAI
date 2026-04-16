@@ -24,7 +24,7 @@ Create a clean, structured research outline.
 Rules:
 - EXACT number of sections required
 - Each section = major part of research
-- Each section has 2–3 subtopics
+- Each section has EXACTLY 2 subtopics
 - Keep structure simple and logical
 - No explanations
 

@@ -21,7 +21,7 @@ interface TopicFormProps {
 const TopicForm: React.FC<TopicFormProps> = ({ onSubmit }) => {
   const [mainTopic, setMainTopic] = useState("");
   const [topicDescription, setTopicDescription] = useState("");
-  const [documentLength, setDocumentLength] = useState<number>(10);
+  const [documentLength, setDocumentLength] = useState<number>(8);
   const [outputFormat, setOutputFormat] = useState<"DOCX" | "PDF">("DOCX");
   const [academicLevel, setAcademicLevel] = useState("Undergraduate");
   const [images, setImages] = useState<"none" | "1-per-page" | "2-per-page">("none");

@@ -50,7 +50,7 @@ async function generateWithFallback(system: string, prompt: string): Promise<str
   throw new Error("All models failed");
 }
 
-// 🧠 CLEAN + SAFE JSON PARSER (MAIN FIX)
+// 🧠 CLEAN + SAFE JSON PARSER
 function extractJSON(text: string) {
   try {
     return JSON.parse(text);
@@ -60,14 +60,10 @@ function extractJSON(text: string) {
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
-
       return JSON.parse(cleaned);
     } catch {
       const match = text.match(/\{[\s\S]*\}/);
-      if (match) {
-        return JSON.parse(match[0]);
-      }
-
+      if (match) return JSON.parse(match[0]);
       throw new Error("Invalid JSON response from model");
     }
   }
@@ -77,84 +73,123 @@ function extractJSON(text: string) {
 const BASE_SYSTEM = `
 You are an expert academic research writer.
 
-Write clear, structured, logical academic content.
+Write detailed, well-structured, flowing academic content.
 
 Rules:
 - No markdown
 - No bullet points
 - No citations
-- Use paragraphs
+- Use paragraphs only
 - Avoid repetition
-- Max one [IMAGE: prompt]
+- Each piece of content must be thorough and substantive
 `;
 
-// 🚀 FULL PAPER (1 call = optimized)
+// Words per subtopic based on document length selection
+function wordsPerSubtopic(documentLength?: number): number {
+  if (!documentLength) return 200;
+  if (documentLength <= 4) return 160;   // Short  (~1 page / 3 subtopics)
+  if (documentLength <= 8) return 220;   // Medium (~1 page / 3 subtopics)
+  return 300;                            // Long   (~1 page / 3 subtopics)
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Generate content for a FULL PAPER in a single API call.
+ *
+ * Returns: Record<sectionId, Record<subtopicTitle, content>>
+ * Each subtopic gets its own, independently generated content block.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
 export async function generateFullPaperContent(
   mainTopic: string,
   sections: { id: string; title: string; subtopics: string[] }[],
-  academicLevel: string
-): Promise<Record<string, string>> {
+  academicLevel: string,
+  documentLength?: number
+): Promise<Record<string, Record<string, string>>> {
+  const wpSt = wordsPerSubtopic(documentLength);
+
   const system = `${BASE_SYSTEM}\nAcademic Level: ${academicLevel}`;
 
+  // Build a flat list of every section + subtopic pair so the model writes each separately
+  const subtopicList = sections.flatMap((s) =>
+    s.subtopics.map((st) => `${s.id}__${st}`)
+  );
+
   const prompt = `
-Generate full research content.
+Generate academic content for a research paper on: "${mainTopic}"
 
-Topic: ${mainTopic}
+For EVERY item below, write exactly ${wpSt}–${wpSt + 80} words of flowing academic prose (NO bullet points, NO headers, NO markdown).
 
-Sections:
-${sections.map(s => `${s.id}: ${s.title} → ${s.subtopics.join(", ")}`).join("\n")}
+Items (format: sectionId__subtopicTitle):
+${subtopicList.join("\n")}
 
-Return ONLY raw JSON (no markdown, no backticks):
-{ "sectionId": "content" }
+Return ONLY valid raw JSON in this exact shape (no backticks, no markdown):
+{
+  "sectionId": {
+    "subtopicTitle": "content paragraphs here"
+  }
+}
 
-Requirements:
-- Cover all subtopics
-- Maintain flow
-- Keep concise but meaningful
+Critical rules:
+- EVERY sectionId and EVERY subtopicTitle listed above MUST appear as a key
+- Each subtopic value must be ${wpSt} words minimum — 2 full paragraphs
+- Do NOT skip any subtopic
+- Only plain prose in the content strings
 `;
 
   try {
     const text = await generateWithFallback(system, prompt);
-
-    // ✅ FIXED parsing
     const parsed = extractJSON(text);
-
-    return parsed;
+    return parsed as Record<string, Record<string, string>>;
   } catch (err) {
     console.error("Full content failed:", err);
     throw new Error("Failed to generate full paper content");
   }
 }
 
-// 🚀 SECTION GENERATION
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Regenerate content for a SINGLE SECTION.
+ *
+ * Returns: Record<subtopicTitle, content>
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
 export async function generateSectionContent(
   mainTopic: string,
   sectionTitle: string,
   subtopics: string[],
-  academicLevel: string
-): Promise<string> {
+  academicLevel: string,
+  documentLength?: number
+): Promise<Record<string, string>> {
+  const wpSt = wordsPerSubtopic(documentLength);
+
   const system = `${BASE_SYSTEM}\nAcademic Level: ${academicLevel}`;
 
   const prompt = `
-Write a research section.
+Write academic content for section "${sectionTitle}" in a paper on: "${mainTopic}"
 
-Topic: ${mainTopic}
-Section: ${sectionTitle}
+Write SEPARATELY for each subtopic below (${wpSt}–${wpSt + 80} words each, 2 full paragraphs min):
+${subtopics.map((s, i) => `${i + 1}. ${s}`).join("\n")}
 
-Subtopics:
-${subtopics.map((s) => `- ${s}`).join("\n")}
+Return ONLY valid raw JSON (no backticks, no markdown):
+{
+  "subtopicTitle": "content paragraphs"
+}
 
-Requirements:
-- Cover all subtopics
-- Smooth transitions
-- Keep concise but informative
+Rules:
+- Every subtopic listed MUST have its own key and ${wpSt}+ words
+- Plain academic prose only, no bullet points
 `;
 
   try {
     const text = await generateWithFallback(system, prompt);
-    return text.trim();
+    const parsed = extractJSON(text);
+    return parsed as Record<string, string>;
   } catch (err) {
     console.error("Section generation failed:", err);
-    return `Error generating section "${sectionTitle}".`;
+    // Return a stub so partial content still shows
+    return Object.fromEntries(
+      subtopics.map((st) => [st, `Error generating content for "${st}".`])
+    );
   }
 }
