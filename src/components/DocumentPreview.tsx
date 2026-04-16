@@ -30,14 +30,14 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0 mb-8">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">Document Preview</h1>
           <p className="text-sm text-white/40">Your research paper is ready to export</p>
         </div>
 
         {/* Export Buttons */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
           <Button
             variant="outline"
             onClick={() => handleExport("PDF")}
@@ -80,9 +80,9 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
         {/* Scrollable Content - Styled as white paper */}
         <div className="overflow-y-auto max-h-[550px]">
-          <div className="mx-6 my-6 bg-white text-gray-900 rounded-lg shadow-2xl overflow-hidden">
+          <div className="mx-2 sm:mx-6 my-6 bg-white text-gray-900 rounded-lg shadow-2xl overflow-hidden">
             {/* Cover Page */}
-            <div className="px-12 py-16 text-center border-b border-gray-100">
+            <div className="px-6 sm:px-12 py-10 sm:py-16 text-center border-b border-gray-100">
               <div className="w-12 h-0.5 bg-gray-300 mx-auto mb-8" />
               <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-4">{outline.mainTopic}</h1>
               {topicInfo?.academicLevel && (
@@ -106,7 +106,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             </div>
 
             {/* Table of Contents */}
-            <div className="px-12 py-10 border-b border-gray-100">
+            <div className="px-6 sm:px-12 py-8 sm:py-10 border-b border-gray-100">
               <h2 className="text-lg font-bold text-gray-900 mb-6 uppercase tracking-wider text-xs text-gray-400">Table of Contents</h2>
               <div className="space-y-3">
                 {selectedSections.map((section, si) => (
@@ -127,7 +127,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             </div>
 
             {/* Content Sections */}
-            <div className="px-12 py-10 space-y-10">
+            <div className="px-6 sm:px-12 py-8 sm:py-10 space-y-10">
               {selectedSections.map((section, si) => (
                 <div key={section.id}>
                   <h2 className="text-lg font-bold text-gray-900 mb-6 pb-2 border-b border-gray-100">
@@ -163,26 +163,26 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between pt-8 mt-8 border-t border-white/5">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-0 pt-8 mt-8 border-t border-white/5">
         <Button
           variant="ghost"
           onClick={onBack}
-          className="text-white/40 hover:text-white hover:bg-white/5 gap-2 rounded-xl"
+          className="text-white/40 hover:text-white hover:bg-white/5 gap-2 rounded-xl w-full sm:w-auto"
         >
           <ArrowLeft className="size-4" /> Back to Content
         </Button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col min-[450px]:flex-row items-center gap-2 w-full sm:w-auto">
           <Button
             variant="outline"
             onClick={() => handleExport("PDF")}
-            className="bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white rounded-xl gap-2"
+            className="bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white rounded-xl gap-2 w-full min-[450px]:w-auto"
           >
             <FileBox className="size-4" /> Download PDF
           </Button>
           <Button
             onClick={() => handleExport("DOCX")}
-            className="bg-primary text-white hover:bg-primary/90 rounded-xl gap-2"
+            className="bg-primary text-white hover:bg-primary/90 rounded-xl gap-2 w-full min-[450px]:w-auto"
           >
             <FileText className="size-4" /> Download DOCX
           </Button>

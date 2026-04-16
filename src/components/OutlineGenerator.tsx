@@ -241,7 +241,7 @@ const OutlineGenerator: React.FC<OutlineGeneratorProps> = ({
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0 mb-8">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">
             Research Outline
@@ -250,15 +250,6 @@ const OutlineGenerator: React.FC<OutlineGeneratorProps> = ({
             Review and customize your AI-generated document structure
           </p>
         </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={addSection}
-          className="bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
-        >
-          <Plus className="size-3.5" /> Add Section
-        </Button>
       </div>
 
       {/* Topic */}

@@ -168,7 +168,7 @@ const ContentGenerator: React.FC<ContentGeneratorProps> = ({
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0 mb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">
             Generate Content
